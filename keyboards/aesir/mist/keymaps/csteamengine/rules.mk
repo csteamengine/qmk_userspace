@@ -16,3 +16,7 @@ SRC += ./graphics/mist/layer-1-full.qgf.c
 SRC += ./graphics/mist/layer-2-full.qgf.c
 TAP_DANCE_ENABLE = yes
 QGF_DECOMPRESSOR_ENABLE = yes
+
+# Dynamic keymap display: mirrors the physical layout from g_led_config.
+SRC += keymap_display.c
+SRC += ./fonts/font_proggy_tiny.qff.c

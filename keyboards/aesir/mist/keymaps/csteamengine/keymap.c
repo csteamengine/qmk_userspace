@@ -7,6 +7,13 @@
 #include "lib/layer_status/layer_status.h"
 #include "print.h"
 
+// Dynamic, layer-aware keymap render on the LCD. Comment out to fall back to the
+// pre-baked layer images (layer-1-full / layer-2-full).
+#define KEYMAP_DISPLAY
+#ifdef KEYMAP_DISPLAY
+#include "keymap_display.h"
+#endif
+
 #ifdef LCD_ACTIVITY_TIMEOUT
 #include "backlight.h"
 #include <qp.h>
@@ -75,7 +82,8 @@ typedef enum {
     TD_UNKNOWN,
     TD_SINGLE_TAP,
     TD_SINGLE_HOLD,
-    TD_DOUBLE_TAP
+    TD_DOUBLE_TAP,
+    TD_TRIPLE_TAP
 } td_state_t;
 
 typedef struct {
@@ -86,6 +94,64 @@ typedef struct {
     uint16_t held;
     uint16_t hold;
 } td_tap_t;
+#endif
+
+#ifdef KEYMAP_DISPLAY
+// Short labels for the on-screen keymap. A single space becomes a line break.
+// Defined here so it can see the tap-dance enum and the custom keycodes.
+// Abbreviated (<=3 char) labels so they fit the small physical-mirror cells.
+const char *keycode_label(uint16_t keycode) {
+    switch (keycode) {
+        // shared / base
+        case KC_ESC:  return "ESC";
+        case KC_DEL:  return "DEL";
+        case KC_MPRV: return "PRV";
+        case KC_MPLY: return "PLY";
+        case KC_MNXT: return "NXT";
+        case KC_SPC:  return "SPC";
+        case KC_RCTL: return "CTL";
+        case KC_LOPT: return "OPT";
+        case KC_LGUI: return "CMD";
+        case KC_UP:   return "UP";
+        case KC_DOWN: return "DN";
+        case KC_LEFT: return "LT";
+        case KC_RIGHT:return "RT";
+        case KC_HOME: return "HOM";
+        case KC_END:  return "END";
+        case KC_VOLU: return "VL+";
+        case KC_VOLD: return "VL-";
+        // custom keycodes
+        case SCREEN_RECORDING_1:       return "REC";
+        case SCREEN_SHOT_TO_CLIPBOARD: return "CLP";
+        case SCREEN_SHOT_AREA:         return "ARA";
+        case SCREEN_SHOT_SCREEN:       return "SHT";
+        case MAC_EMOJIS:               return "EMO";
+        case APP_SWITCHER:             return "APP";
+        // tap dances
+        case TD(TD_PW_ONE):              return "PW1";
+        case TD(TD_PW_TWO):              return "PW2";
+        case TD(TD_PW_THREE):            return "PW3";
+        case TD(TD_PW_FOUR):             return "PW4";
+        case TD(TD_TICK_TICK):           return "TOD";
+        case TD(TD_OBSIDIAN):            return "NOT";
+        case TD(TD_REFACTOR):            return "RFC";
+        case TD(TD_FN0_CMD_SHIFT_SPACE): return "LYR";
+        // FN0 layer
+        case QK_BOOT: return "BL";
+        case RM_TOGG: return "TOG";
+        case RM_VALD: return "V-";
+        case RM_VALU: return "V+";
+        case RM_HUEU: return "HUE";
+        case RM_PREV: return "RP-";
+        case RM_NEXT: return "RP+";
+        case LAG(KC_LEFT):  return "CB";
+        case LAG(KC_RIGHT): return "CF";
+        // empty cells
+        case KC_NO:
+        case KC_TRNS:
+        default: return "";
+    }
+}
 #endif
 
 // clang-format off
@@ -273,7 +339,8 @@ void power_off_lcd(void) {
     // TODO Disable LCD backlight
 }
 
-void render_lcd(bool force) {
+// Kept as a fallback for when KEYMAP_DISPLAY is disabled; unused otherwise.
+__attribute__((unused)) void render_lcd(bool force) {
     const uint8_t curr_rgb_mode = rgblight_get_mode();
     bool curr_caps = host_keyboard_led_state().caps_lock;
 
@@ -326,8 +393,12 @@ void check_lcd_timeout(void) {
         is_lcd_timeout = true;
     } else if(is_lcd_timeout && peripherals_on) {
         init_lcd();
+        #ifdef KEYMAP_DISPLAY
+        keymap_display_init(lcd);
+        #else
         render_static_text();
         render_lcd(true);
+        #endif
         is_lcd_timeout = false;
     }
 }
@@ -354,8 +425,12 @@ void keyboard_post_init_keymap(void) {
     // left_1_layout = qp_load_image_mem(gfx_left_1_layout);
 
     init_lcd();
+    #ifdef KEYMAP_DISPLAY
+    keymap_display_init(lcd);
+    #else
     render_static_text();
     render_lcd(false);
+    #endif
 
     #ifdef BACKLIGHT_ENABLE
     backlight_enable();
@@ -369,7 +444,11 @@ void housekeeping_task_keymap(void) {
         check_lcd_timeout();
 
         if(!is_lcd_timeout && peripherals_on) {
+            #ifdef KEYMAP_DISPLAY
+            keymap_display_render(lcd);
+            #else
             render_lcd(false);
+            #endif
             last_update = timer_read();
         }
     #endif
@@ -393,8 +472,12 @@ void suspend_wakeup_init_keymap(void) {
     #ifdef LCD_ACTIVITY_TIMEOUT
         // Turn LCD On
         init_lcd();
+        #ifdef KEYMAP_DISPLAY
+        keymap_display_init(lcd);
+        #else
         render_static_text();
         render_lcd(true);
+        #endif
     #endif
 
     #ifdef BACKLIGHT_ENABLE
@@ -427,6 +510,8 @@ td_state_t cur_dance(tap_dance_state_t *state) {
             return TD_SINGLE_HOLD;
     } else if (state->count == 2)
         return TD_DOUBLE_TAP;
+    else if (state->count == 3)
+        return TD_TRIPLE_TAP;
     else
         return TD_UNKNOWN;
 }
@@ -527,6 +612,11 @@ void pw_one_finished(tap_dance_state_t *state, void *user_data) {
         case TD_DOUBLE_TAP:
             #ifdef SECRETS_H
             SEND_STRING(PW_ONE_STRING);
+            #endif
+            break;
+        case TD_TRIPLE_TAP:
+            #ifdef SECRETS_H
+            SEND_STRING(PW_FIVE_STRING);
             #endif
             break;
         default:
