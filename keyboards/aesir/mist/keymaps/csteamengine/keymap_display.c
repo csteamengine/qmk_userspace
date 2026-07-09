@@ -15,6 +15,7 @@
 #include "rgb_matrix.h"
 #include "fonts/font_proggy_tiny.qff.h"
 #include "fonts/norse20.qff.h"
+#include "graphics/hermod-logo.qgf.h"
 
 // Status-line helpers defined in keymap.c (reused so we don't duplicate the
 // RGB mode name switch / layer name table).
@@ -44,25 +45,25 @@ static const artkey_t keys[] = {
     // ---- top function row in three groups of 4 (screenshots | media | passwords) ----
     // ay = 15 leaves a line of room above for the caps/layer/RGB status text, and
     // brings the row closer to the middle blocks.
-    {0, 1,   3,15, 8, 13}, {0, 2,  12,15, 8, 13}, {0, 3,  21,15, 8, 13}, {0, 4,  30,15, 8, 13},
-    {0, 5,  46,15, 8, 13}, // group 2: gap on base (KC_NO), RGB mode-prev on FN0
-    {0, 6,  55,15, 8, 13}, {0, 7,  64,15, 8, 13}, {0, 8,  73,15, 8, 13},
-    {0, 9,  89,15, 8, 13}, {0, 10, 98,15, 8, 13}, {0, 11,107,15, 8, 13}, {0, 12,116,15, 8, 13},
+    {0, 1,   3,15, 8, 11}, {0, 2,  12,15, 8, 11}, {0, 3,  21,15, 8, 11}, {0, 4,  30,15, 8, 11},
+    {0, 5,  46,15, 8, 11}, // group 2: gap on base (KC_NO), RGB mode-prev on FN0
+    {0, 6,  55,15, 8, 11}, {0, 7,  64,15, 8, 11}, {0, 8,  73,15, 8, 11},
+    {0, 9,  89,15, 8, 11}, {0, 10, 98,15, 8, 11}, {0, 11,107,15, 8, 11}, {0, 12,116,15, 8, 11},
 
     // ---- left block (EMOJI / TODO / NOTE / APP) ----
-    {KD_BLANK, 0,  4, 34, 11, 14}, {KD_BLANK, 0, 15, 34, 11, 14}, {5, 2,  26, 34, 11, 14},
-    {6, 0,         4, 49, 11, 14}, {6, 1,        15, 49, 11, 14}, {6, 2,  26, 49, 11, 14},
+    {KD_BLANK, 0,  4, 34, 11, 12}, {KD_BLANK, 0, 15, 34, 11, 12}, {5, 2,  26, 34, 11, 12},
+    {6, 0,         4, 49, 11, 12}, {6, 1,        15, 49, 11, 12}, {6, 2,  26, 49, 11, 12},
 
-    // ---- center block (blank on base; VOL/CODE + arrows on FN0) ----
-    {KD_BLANK, 0, 47, 34, 11, 14}, {5, 9,        58, 34, 11, 14}, {KD_BLANK, 0, 69, 34, 11, 14},
-    {6, 8,        47, 49, 11, 14}, {6, 9,        58, 49, 11, 14}, {6, 10,       69, 49, 11, 14},
+    // ---- center block: arrows only (UP top, LT/DN/RT below); VOL/CODE on FN0 ----
+    {5, 9,        58, 34, 11, 12},
+    {6, 8,        47, 49, 11, 12}, {6, 9,        58, 49, 11, 12}, {6, 10,       69, 49, 11, 12},
 
-    // ---- right block (REFACTOR / HOME / END) ----
-    {KD_BLANK, 0, 90, 34, 11, 14}, {KD_BLANK, 0,101, 34, 11, 14}, {5, 11,112, 34, 11, 14},
-    {KD_BLANK, 0, 90, 49, 11, 14}, {6, 11,      101, 49, 11, 14}, {6, 12,112, 49, 11, 14},
+    // ---- right block: 2x2 (REFACTOR, blank / HOME, END) ----
+    {5, 11,     101, 34, 11, 12}, {KD_BLANK, 0, 112, 34, 11, 12},
+    {6, 11,     101, 49, 11, 12}, {6, 12,     112, 49, 11, 12},
 
     // ---- thumb cluster (LAYER dropped slightly, like the art) ----
-    {5, 3, 31, 66, 11, 14}, {5, 4, 44, 66, 11, 14}, {5, 5, 57, 72, 11, 14}, {5, 6, 70, 66, 11, 14}, {5, 7, 83, 66, 11, 14},
+    {5, 3, 31, 66, 11, 12}, {5, 4, 44, 66, 11, 12}, {5, 5, 57, 72, 11, 12}, {5, 6, 70, 66, 11, 12}, {5, 7, 83, 66, 11, 12},
 };
 // clang-format on
 
@@ -176,9 +177,31 @@ static void draw_status(painter_device_t display) {
     qp_close_font(font);
 }
 
+// Static logo in the empty bottom-right corner. Drawn once per (re)init.
+static void draw_logo(painter_device_t display) {
+    const painter_image_handle_t logo = qp_load_image_mem(gfx_hermod_logo);
+    if (logo == NULL) {
+        return;
+    }
+    qp_drawimage(display, KD_W - logo->width - 14, KD_H - logo->height - 12, logo);
+    qp_close_image(logo);
+}
+
+// "MIST" wordmark in the empty bottom-left corner. Drawn once per (re)init.
+static void draw_brand(painter_device_t display) {
+    const painter_font_handle_t font = qp_load_font_mem(font_norse20);
+    if (font == NULL) {
+        return;
+    }
+    qp_drawtext(display, 3, KD_H - font->line_height - 4, font, "MIST");
+    qp_close_font(font);
+}
+
 void keymap_display_init(painter_device_t display) {
     qp_rect(display, 0, 0, KD_W - 1, KD_H - 1, HSV_BLACK, true);
     compute_layout();
+    draw_logo(display);
+    draw_brand(display);
 
     st_caps  = 0xFF;
     st_layer = 0xFF;
