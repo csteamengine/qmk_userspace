@@ -193,7 +193,7 @@ static void draw_brand(painter_device_t display) {
     if (font == NULL) {
         return;
     }
-    qp_drawtext(display, 3, KD_H - font->line_height - 4, font, "MIST");
+    qp_drawtext(display, 8, KD_H - font->line_height - 10, font, "MIST");
     qp_close_font(font);
 }
 
